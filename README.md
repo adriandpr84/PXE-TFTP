@@ -1,56 +1,70 @@
-# PXE Boot + Instalación Desatendida de Ubuntu Server
+# PXE Boot + Instalación Desatendida
 
 ## Descripción
 
-Este proyecto demuestra el despliegue automático de nodos mediante **PXE (Preboot Execution Environment)** y **Ubuntu Autoinstall**.
+Demo de despliegue automático de nodos mediante PXE (Preboot Execution Environment) e instalación desatendida.
 
-Se utilizan los siguientes servicios:
-
-- **DHCP** → asignación automática de direcciones IP
-- **TFTP** → distribución del bootloader y archivos de arranque
-- **HTTP** → distribución de la imagen de instalación y perfiles Autoinstall
-
-Cada nodo puede recibir un **perfil de instalación distinto** según su dirección **MAC**.
+Se usan DHCP, TFTP y HTTP para asignar IPs, distribuir archivos de arranque y perfiles de instalación.
 
 ---
 
 ## Entorno de la demo
 
-- **1 VM servidor PXE**: Instalación limpia de Ubuntu Server 22.04
+- **1 VM servidor PXE**: Ubuntu Server 22.04 (instalación limpia)
 - **2 VMs cliente**
 
-**Topología del servidor PXE:**
-
-| Interfaz | Tipo | Uso |
-|----------|------|-----|
-| enp0s3   | NAT  | Acceso a internet |
-| enp0s8   | Host-Only | Conexión con host |
-| enp0s9   | Red interna | Red PXE (DHCP/TFTP/HTTP) |
-
-**IP del servidor PXE (red interna):** `192.168.1.1`
-
-### Clientes
-
-| Interfaz | Tipo |
-|----------|------|
-| enp0s3 | Red interna (PXE) |
-| enp0s8 | NAT |
+### Topología de la red
+```
+             +------------------+
+             |  Servidor PXE    |
+             |  192.168.1.1     |
+             |  enp0s9          |
+             +--------+---------+
+                      |
+       Red interna PXE: 192.168.1.0/24
+                      |
+       +--------------+--------------+
+       |                             |
++------+------------+            +---+----------------+
+| Cliente PXE 1     |            | Cliente PXE 2      |
+| 192.168.1.50      |            | 192.168.1.51       |
+| 12:34:56:78:90:ab |            | 12:34:56:78:90:ba  |
+| enp0s3            |            | enp0s3             |
++-------------------+            +--------------------+
+```
 
 ---
-
-
-# Demo paso a paso
-
-### Instalación de dependencias
+## Estructura del repositorio
+```
+PXE-TFTP/
+├── autoinstall
+│   ├── nodo_1
+│   │   ├── meta-data
+│   │   └── user-data       # Perfil Autoinstall nodo 1
+│   └── nodo_2
+│       ├── meta-data
+│       └── user-data       # Perfil Autoinstall nodo 2
+├── dhcp
+│   └── dhcpd.conf           # Configuración del servidor DHCP
+└── pxe
+    └── pxelinux.cfg
+        ├── 01-12-34-56-78-90-ab   # Menú PXE nodo 1
+        └── 01-12-34-56-78-90-ba   # Menú PXE nodo 2
+```
+----
+## Guía paso a paso
+> La guía se realiza como `root`, por lo que los comandos no incluyen `sudo`.
+> 
+### 1. Instalación de dependencias
 
 ```bash
 sudo apt update
 
 sudo apt install -y tftpd-hpa isc-dhcp-server apache2 syslinux pxelinux syslinux-common
 ```
----
 
-### Netplan
+
+### 2. Configuración de red (Netplan)
 Configurar la interfaz de la red interna (`/etc/netplan/50-cloud-init.yaml`)
 ```
 network:
@@ -70,21 +84,20 @@ Aplicar configuración
 netplan apply
 ```
 
-## Configurar el servidor TFTP
-Crear estructura de directorios
+
+### 3. Configuración TFTP
+> Servirá los archivos de arranque (PXELINUX, kernel e initrd) a los clientes que hagan PXE Boot.
+
+Crear estructura de directorios y permisos
 ```bash
-mkdir -p /srv/tftp/pxelinux.cfg
-mkdir -p /srv/tftp/images
+mkdir -p /srv/tftp/pxelinux.cfg /srv/tftp/images
+chown -R tftp:tftp /srv/tftp
+chmod -R 755 /srv/tftp
 ```
-Dar permisos al servicio TFTP
+Copiar archivos de PXE
 ```bash
-sudo chown -R tftp:tftp /srv/tftp
-sudo chmod -R 755 /srv/tftp
-```
-Copiar archivos de PXE al servidor TFTP
-```bash
-sudo cp /usr/lib/PXELINUX/pxelinux.0 /srv/tftp/
-sudo cp /usr/lib/syslinux/modules/bios/*.c32 /srv/tftp/
+cp /usr/lib/PXELINUX/pxelinux.0 /srv/tftp/
+cp /usr/lib/syslinux/modules/bios/*.c32 /srv/tftp/
 ```
 Configurar servidor TFTP (`/etc/default/tftpd-hpa`)
 ```
@@ -93,16 +106,18 @@ TFTP_DIRECTORY="/srv/tftp"
 TFTP_ADDRESS=":69"
 TFTP_OPTIONS="--secure"
 ```
-Reiniciar servicio:
+Reiniciar y habilitar servicio:
 ```
-sudo systemctl restart tftpd-hpa
-sudo systemctl enable tftpd-hpa
+systemctl restart tftpd-hpa
+systemctl enable tftpd-hpa
 ```
 
-## Configuración del servidor DHCP:
-Copiar la [configuración del servidor DHCP](./dhcp/dhcpd.conf) incluida en el repositorio
+### 4. Configuracion DHCP
+> Cada cliente recibe IP automáticamente según su MAC.
+
+Copiar la [configuración del servidor DHCP](./dhcp/dhcpd.conf) incluida:
 ```bash
-sudo cp dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf
+cp dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf
 ```
 
 Especificar interfaz DHCP(`/etc/default/isc-dhcp-server`)
@@ -110,16 +125,18 @@ Especificar interfaz DHCP(`/etc/default/isc-dhcp-server`)
 INTERFACESv4="enp0s9"
 ```
 
-Iniciar el servidor DHCP
+Reiniciar y habilitar servicio:
 ```
-sudo systemctl restart isc-dhcp-server
-sudo systemctl enable isc-dhcp-server
+systemctl restart isc-dhcp-server
+systemctl enable isc-dhcp-server
 ```
-## Preparar archivos de instalación de Ubuntu
+> Cada nodo recibirá IP del servidor DHCP a través de enp0s9.
+
+### 5. Preparar archivos de instalación
 Crear directorios necesarios:
 ```bash
-sudo mkdir -p /srv/tftp/images/ubuntu-22.04
-sudo mkdir -p /var/www/html/ubuntu-22.04
+mkdir -p /srv/tftp/images/ubuntu-22.04
+mkdir -p /var/www/html/ubuntu-22.04
 ```
 
 Descargar ISO en el directorio del servidor HTTP:
@@ -130,41 +147,43 @@ mv ubuntu-22.04.5-live-server-amd64.iso /var/www/html/ubuntu-22.04
 
 Montar ISO
 ```bash
-sudo mkdir /mnt/ubuntu-iso
-sudo mount -o loop /var/www/html/ubuntu-22.04/ubuntu-22.04*.iso /mnt/ubuntu-iso
+mkdir /mnt/ubuntu-iso
+mount -o loop /var/www/html/ubuntu-22.04/ubuntu-22.04*.iso /mnt/ubuntu-iso
 ```
 
 Copiar kernel e initrd al directorio del servidor TFTP
 ```bash
-sudo cp /mnt/ubuntu-iso/casper/vmlinuz /srv/tftp/images/ubuntu-22.04/
-sudo cp /mnt/ubuntu-iso/casper/initrd /srv/tftp/images/ubuntu-22.04/
+cp /mnt/ubuntu-iso/casper/{vmlinuz,initrd} /srv/tftp/images/ubuntu-22.04/
 ```
 
 Desmontar ISO
 ```bash
-sudo umount /mnt/ubuntu-iso
+umount /mnt/ubuntu-iso
 ```
 
-# Configuración PXE
-
-Copiar la [configuración del menú PXE](.pxe/pxelinux.cfg):
+### 6. Configuración PXE
+Copiar [configuración del menú PXE](./pxe/pxelinux.cfg)
 
 ```bash
-sudo cp -r pxe/pxelinux.cfg /srv/tftp/
+cp -r pxe/pxelinux.cfg /srv/tftp/
 ```
-- [menu PXE nodo 1](.pxe/pxelinux.cfg/01-12-34-56-78-90-ab)
-- [menu PXE nodo 2](.pxe/pxelinux.cfg/01-12-34-56-78-90-ba)
+- [Nodo 1](./pxe/pxelinux.cfg/01-12-34-56-78-90-ab)
+- [Nodo 2](./pxe/pxelinux.cfg/01-12-34-56-78-90-ba)
+> Cada nodo usa su menú PXE específico según su MAC, que apunta a su perfil de autoinstall.
 
----
-## Preparar autoinstall
 
-Copiar los [autoinstall del repositorio](./autoinstall) al directorio del servidor HTTP
+### 7. Perfiles autoinstall
+
+Copiar [perfiles](./autoinstall) al servidor HTTP
 ```bash
-sudo cp -r autoinstall/ /var/www/html/
-sudo cp -r autoinstall/ /var/www/html/
+cp -r autoinstall/ /var/www/html/
 ```
-- [autoinstall nodo 1](./autoinstall/nodo1/user-data)
-- [autoinstall nodo 2](./autoinstall/nodo2/user-data)
----
+- [Perfil nodo 1](./autoinstall/nodo_1/user-data)
+- [Perfil nodo 2](./autoinstall/nodo_2/user-data)
+> Cada cliente descargará automaticamente su perfil según su MAC.
+
+### 8. Arrancar clientes
+- Configurar arranque por red (PXE) en cada VM cliente.
+- El cliente recibirá IP, cargará PXELINUX, seleccionará su perfil y realizará la instalación automáticamente.
 
 
