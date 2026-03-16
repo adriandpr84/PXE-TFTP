@@ -20,7 +20,3 @@ autoinstall:
   storage:
     layout:
       name: direct
-
-  user-data:
-    package_update: false
-    package_upgrade: false
