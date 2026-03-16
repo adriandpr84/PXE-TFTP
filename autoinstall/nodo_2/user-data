@@ -22,7 +22,7 @@ autoinstall:
       name: direct
 
   packages: 
-    - sl
+    - tree
 
   user-data:
     package_update: false
