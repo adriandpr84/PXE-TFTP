@@ -1,11 +1,57 @@
+# PXE Boot + Instalación Desatendida de Ubuntu Server
 
-## Instalar los paquetes requeridos
-### TFTP server, DHCP server, Apache, syslinux
+## Descripción
+
+Este proyecto demuestra el despliegue automático de nodos mediante **PXE (Preboot Execution Environment)** y **Ubuntu Autoinstall**.
+
+Se utilizan los siguientes servicios:
+
+- **DHCP** → asignación automática de direcciones IP
+- **TFTP** → distribución del bootloader y archivos de arranque
+- **HTTP** → distribución de la imagen de instalación y perfiles Autoinstall
+
+Cada nodo puede recibir un **perfil de instalación distinto** según su dirección **MAC**.
+
+---
+
+## Entorno de la demo
+
+- **1 VM servidor PXE**: Instalación limpia de Ubuntu Server 22.04
+- **2 VMs cliente**
+
+**Topología del servidor PXE:**
+
+| Interfaz | Tipo | Uso |
+|----------|------|-----|
+| enp0s3   | NAT  | Acceso a internet |
+| enp0s8   | Host-Only | Conexión con host |
+| enp0s9   | Red interna | Red PXE (DHCP/TFTP/HTTP) |
+
+**IP del servidor PXE (red interna):** `192.168.1.1`
+
+### Clientes
+
+| Interfaz | Tipo |
+|----------|------|
+| enp0s3 | Red interna (PXE) |
+| enp0s8 | NAT |
+
+---
+
+
+# Demo paso a paso
+
+### Instalación de dependencias
+
+```bash
+sudo apt update
+
+sudo apt install -y tftpd-hpa isc-dhcp-server apache2 syslinux pxelinux syslinux-common
 ```
-apt install tftpd-hpa isc-dhcp-server apache2 syslinux pxelinux syslinux-common -y
-```
-## Instalar los paquetes requeridos
-Configurar la interfaz de la red interna (/etc/netplan/50-cloud-init.yaml)
+---
+
+### Netplan
+Configurar la interfaz de la red interna (`/etc/netplan/50-cloud-init.yaml`)
 ```
 network:
     ethernets:
@@ -20,25 +66,19 @@ network:
     version: 2
 ```
 Aplicar configuración 
-```
+```bash
 netplan apply
 ```
 
 ## Configurar el servidor TFTP
-### Crear Estructura De Directorio
-```
-mkdir -p /srv/tftp/pxelinux.cfg
-mkdir -p /srv/tftp/images
-```
-
-### Create TFTP root directory
-```
+Crear estructura de directorios:
+```bash
 mkdir -p /srv/tftp/pxelinux.cfg
 mkdir -p /srv/tftp/images
 ```
 
 Configurar TFTP (/etc/default/tftpd-hpa):
-```
+```bash
 vi /etc/default/tftpd-hpa
 ```
 ```
@@ -48,44 +88,20 @@ TFTP_ADDRESS=":69"
 TFTP_OPTIONS="--secure"
 ```
 
-Reiniciar TFTP:
+Reiniciar servicio:
 ```
 sudo systemctl restart tftpd-hpa
+sudo systemctl enable tftpd-hpa
 ```
 
-Configurar el servidor DHCP
+## Configuración del servidor DHCP:
+Copiar la configuración incluida en el repositorio:  
+[Configuracion dhcp](./dhcp/dhcpd.conf)
+
+```bash
+sudo cp dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf
 ```
-vi /etc/dhcp/dhcpd.conf
-```
-```
-# Global options
-option domain-name "pxe.local";
-option domain-name-servers 8.8.8.8, 8.8.4.4;
-default-lease-time 600;
-max-lease-time 7200;
-authoritative;
 
-# Subnet configuration
-
-subnet 192.168.1.0 netmask 255.255.255.0 {
-    range 192.168.1.100 192.168.1.254;
-    option routers 192.168.1.1;
-    option subnet-mask 255.255.255.0;
-
-    next-server 192.168.1.10;
-    filename "pxelinux.0";
-
-    host nodo 1{
-        hardware ethernet <MAC>;
-        fixed-address 192.168.1.50;
-    }
-
-    host nodo 2{
-        hardware ethernet <MAC>;
-        fixed-address 192.168.1.51;
-    }
-}
-```
 Especificar interfaz DHCP
 ```
 vi /etc/default/isc-dhcp-server
