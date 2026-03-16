@@ -71,23 +71,28 @@ netplan apply
 ```
 
 ## Configurar el servidor TFTP
-Crear estructura de directorios:
+Crear estructura de directorios
 ```bash
 mkdir -p /srv/tftp/pxelinux.cfg
 mkdir -p /srv/tftp/images
 ```
-
-Configurar TFTP (/etc/default/tftpd-hpa):
+Dar permisos al servicio TFTP
 ```bash
-vi /etc/default/tftpd-hpa
+sudo chown -R tftp:tftp /srv/tftp
+sudo chmod -R 755 /srv/tftp
 ```
+Copiar archivos de PXE al servidor TFTP
+```bash
+sudo cp /usr/lib/PXELINUX/pxelinux.0 /srv/tftp/
+sudo cp /usr/lib/syslinux/modules/bios/*.c32 /srv/tftp/
+```
+Configurar servidor TFTP (`/etc/default/tftpd-hpa`)
 ```
 TFTP_USERNAME="tftp"
 TFTP_DIRECTORY="/srv/tftp"
 TFTP_ADDRESS=":69"
 TFTP_OPTIONS="--secure"
 ```
-
 Reiniciar servicio:
 ```
 sudo systemctl restart tftpd-hpa
@@ -95,17 +100,12 @@ sudo systemctl enable tftpd-hpa
 ```
 
 ## Configuración del servidor DHCP:
-Copiar la configuración incluida en el repositorio:  
-[Configuracion dhcp](./dhcp/dhcpd.conf)
-
+Copiar la [configuración del servidor DHCP](./dhcp/dhcpd.conf) incluida en el repositorio
 ```bash
 sudo cp dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf
 ```
 
-Especificar interfaz DHCP
-```
-vi /etc/default/isc-dhcp-server
-```
+Especificar interfaz DHCP(`/etc/default/isc-dhcp-server`)
 ```
 INTERFACESv4="enp0s9"
 ```
@@ -115,89 +115,56 @@ Iniciar el servidor DHCP
 sudo systemctl restart isc-dhcp-server
 sudo systemctl enable isc-dhcp-server
 ```
-Preparar archivos de instalación de Ubuntu
-Descargar Ubuntu ISO
-```
-# Create directory for Ubuntu
+## Preparar archivos de instalación de Ubuntu
+Crear directorios necesarios:
+```bash
 sudo mkdir -p /srv/tftp/images/ubuntu-22.04
 sudo mkdir -p /var/www/html/ubuntu-22.04
 ```
-```
-# Download Ubuntu Server ISO
-cd /var/www/html/ubuntu-22.04
-sudo wget https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso
+
+Descargar ISO en el directorio del servidor HTTP:
+```bash
+wget https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso
+mv ubuntu-22.04.5-live-server-amd64.iso /var/www/html/ubuntu-22.04
 ```
 
-Extraer archivos de arranque
-```
-# Mount ISO
+Montar ISO
+```bash
 sudo mkdir /mnt/ubuntu-iso
 sudo mount -o loop /var/www/html/ubuntu-22.04/ubuntu-22.04*.iso /mnt/ubuntu-iso
 ```
-```
-# Copy kernel and initrd
+
+Copiar kernel e initrd al directorio del servidor TFTP
+```bash
 sudo cp /mnt/ubuntu-iso/casper/vmlinuz /srv/tftp/images/ubuntu-22.04/
 sudo cp /mnt/ubuntu-iso/casper/initrd /srv/tftp/images/ubuntu-22.04/
 ```
-```
-# Unmount
+
+Desmontar ISO
+```bash
 sudo umount /mnt/ubuntu-iso
 ```
-### Autoinstall
-```
-mkdir -p /var/www/html/autoinstall/nodo_{1,2}/{meta-data, user-data}
 
-```
-meta-data
-```
-instance-id: nodo1
-```
-user-data
-```
-#cloud-config
-autoinstall:
-  version: 1
-  locale: es_ES
+# Configuración PXE
 
-  keyboard:
-    layout: es
+Copiar la [configuración del menú PXE](.pxe/pxelinux.cfg):
 
-  refresh-installer:
-    update: false
-
-  identity:
-    hostname: nodo1
-    username: admin
-    password: "$6$CylgQV.8wYk/VUlE$UpXhP0y5NrH3ZypUfNvOF2/JEu5rRedFbseqWxsJ/dN0.XjeiK9ho.e78NWOysq/4o19qn1MolUcccrIyCjj5."
-
-  drivers:
-    install: false
-
-  storage:
-    layout:
-      name: direct
-
-  user-data:
-    package_update: false
-    package_upgrade: false
+```bash
+sudo cp -r pxe/pxelinux.cfg /srv/tftp/
 ```
+- [menu PXE nodo 1](.pxe/pxelinux.cfg/01-12-34-56-78-90-ab)
+- [menu PXE nodo 2](.pxe/pxelinux.cfg/01-12-34-56-78-90-ba)
 
-Crear menú de arranque PXE
-Configuración básica del menú
-```
-vi /srv/tftp/pxelinux.cfg/01-<mac>
-```
-```
-DEFAULT menu.c32
-PROMPT 0
-TIMEOUT 300
-ONTIMEOUT local
-MENU TITLE PXE Boot Menu
+---
+## Preparar autoinstall
 
-LABEL ubuntu-22.04-manual
-    MENU LABEL Install Ubuntu 22.04 Server (Manual)
-    KERNEL images/ubuntu-22.04/vmlinuz
-    INITRD images/ubuntu-22.04/initrd
-    APPEND ip=dhcp url=http://192.168.1.10/ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso ds=nocloud-net;s=http://192.168.1.10/autoinstall/nodo1/
+Copiar los [autoinstall del repositorio](./autoinstall) al directorio del servidor HTTP
+```bash
+sudo cp -r autoinstall/ /var/www/html/
+sudo cp -r autoinstall/ /var/www/html/
 ```
+- [autoinstall nodo 1](./autoinstall/nodo1/user-data)
+- [autoinstall nodo 2](./autoinstall/nodo2/user-data)
+---
+
 
