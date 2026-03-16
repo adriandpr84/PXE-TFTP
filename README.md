@@ -2,7 +2,7 @@
 
 ## Descripción
 
-Demo de despliegue automático de nodos mediante PXE (Preboot Execution Environment) e instalación desatendida.
+Demo de despliegue automático de nodos mediante PXE (Preboot Execution Environment) e instalación desatendida de Ubuntu Server 22.04.
 
 Se usan DHCP, TFTP y HTTP para asignar IPs, distribuir archivos de arranque y perfiles de instalación.
 
