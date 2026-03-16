@@ -21,9 +21,6 @@ autoinstall:
     layout:
       name: direct
 
-  packages: 
-    - tree
-
   user-data:
     package_update: false
     package_upgrade: false
