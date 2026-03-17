@@ -58,9 +58,9 @@ PXE-TFTP/
 ### 1. Instalación de dependencias
 
 ```bash
-sudo apt update
+apt update
 
-sudo apt install -y tftpd-hpa isc-dhcp-server apache2 syslinux pxelinux syslinux-common
+apt install -y tftpd-hpa isc-dhcp-server apache2 syslinux pxelinux syslinux-common
 ```
 
 
