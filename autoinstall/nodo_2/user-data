@@ -17,6 +17,11 @@ autoinstall:
   drivers:
     install: false
 
+  updates: security
+
+  packages:
+    - sl
+
   storage:
     layout:
       name: direct
