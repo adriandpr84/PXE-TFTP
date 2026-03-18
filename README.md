@@ -52,7 +52,7 @@ PXE-TFTP/
         └── 01-12-34-56-78-90-ba   # Menú PXE nodo 2
 ```
 ----
-## Guía paso a paso
+## Guía de instalacion paso a paso
 > La guía se realiza como `root`, por lo que los comandos no incluyen `sudo`.
 > 
 ### 1. Instalación de dependencias
