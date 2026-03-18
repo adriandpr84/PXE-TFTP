@@ -17,6 +17,8 @@ autoinstall:
   drivers:
     install: false
 
+  updates: security
+
   storage:
     layout:
       name: direct
