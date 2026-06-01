@@ -1,12 +1,12 @@
 #!/bin/bash
 # Utilidades compartidas para eventos PXE-TFTP
 
-# Cargar variables de entorno (Token y Chat ID)
-ENV_FILE="$(dirname "$0")/.env"
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+ENV_FILE="$SCRIPT_DIR/.env"
 if [ -f "$ENV_FILE" ]; then
     source "$ENV_FILE"
 else
-    echo "ERROR: No se encuentra el archivo .env con las credenciales de Telegram."
+    echo "ERROR: No se encuentra el archivo .env con las credenciales de Telegram en $SCRIPT_DIR."
     exit 1
 fi
 
