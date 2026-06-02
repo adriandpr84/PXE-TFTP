@@ -1,6 +1,8 @@
 #!/bin/bash
 # Script para notificar eventos de DHCP y TFTP a un chat de Telegram.
 
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 source "$SCRIPT_DIR/utils.sh"
 
