@@ -7,9 +7,6 @@ source "$SCRIPT_DIR/utils.sh"
 
 echo "Iniciando monitorización de logs de TFTP..."
 
-# Seguimiento del último archivo notificado por IP para evitar enviar mensajes duplicados en el mismo segundo
-declare -A LAST_NOTIFIED
-
 # Leer de journalctl los logs del servicio tftpd-hpa
 journalctl -f -u tftpd-hpa -n 0 | grep --line-buffered "RRQ from" | while read -r line; do
     IP=$(echo "$line" | awk -F'RRQ from ' '{print $2}' | awk '{print $1}')
@@ -23,16 +20,6 @@ journalctl -f -u tftpd-hpa -n 0 | grep --line-buffered "RRQ from" | while read -
     # Filtrar para avisar solo de archivos clave de arranque (cargador, menú específico y kernel)
     if [ "$FILE" == "pxelinux.0" ] || [[ "$FILE" == pxelinux.cfg/01-* ]] || [[ "$FILE" == *"vmlinuz"* ]]; then
         
-        # Evitar ráfagas (deduplicación básica de 1 segundo por fichero/IP)
-        CURRENT_TIME=$(date +%s)
-        KEY="${IP}_${FILE}"
-        LAST_TIME=${LAST_NOTIFIED[$KEY]:-0}
-        
-        if [ $((CURRENT_TIME - LAST_TIME)) -lt 1 ]; then
-            continue
-        fi
-        LAST_NOTIFIED[$KEY]=$CURRENT_TIME
-
         if [ "$FILE" == "pxelinux.0" ]; then
             TYPE="pxe_boot"
         elif [[ "$FILE" == pxelinux.cfg/01-* ]]; then
